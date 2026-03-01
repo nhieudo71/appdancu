@@ -62,6 +62,10 @@
                 <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
                     <i class="fa-solid fa-plus"></i> Thêm mới
                 </button>
+                <label class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2 cursor-pointer">
+                    <i class="fa-solid fa-camera"></i> Quét từ Ảnh
+                    <input type="file" id="scanImageFile" accept="image/*" class="hidden" onchange="processImage(event)">
+                </label>
                 <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
                     <i class="fa-solid fa-file-excel"></i> Xuất Excel
                 </button>
@@ -77,6 +81,16 @@
                             <i class="fa-solid fa-upload text-green-600"></i> Phục hồi (Tải lên)
                             <input type="file" id="restoreFile" accept=".json" class="hidden" onchange="restoreData(event)">
                         </label>
+                        <label class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer border-t">
+                            <i class="fa-solid fa-file-import text-blue-500"></i> Nhập từ Excel
+                            <input type="file" id="importExcelFile" accept=".xlsx, .xls" class="hidden" onchange="importExcelData(event)">
+                        </label>
+                        <button onclick="openDuplicateModal()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 border-t text-orange-600">
+                            <i class="fa-solid fa-copy"></i> Lọc dữ liệu trùng
+                        </button>
+                        <button onclick="configAPIKey()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 border-t text-purple-600">
+                            <i class="fa-solid fa-key"></i> Cài đặt AI (API Key)
+                        </button>
                         <button onclick="generateMockData()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 border-t text-gray-500 text-sm">
                             <i class="fa-solid fa-flask"></i> Tạo 500 mẫu test
                         </button>
@@ -90,14 +104,25 @@
         </div>
 
         <!-- Search & Filter -->
-        <div class="bg-white rounded-lg shadow p-4 mb-6">
-            <div class="relative">
+        <div class="bg-white rounded-lg shadow p-4 mb-6 flex flex-col md:flex-row gap-4 items-center">
+            <div class="relative flex-grow w-full">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
                 </div>
                 <input type="text" id="searchInput" placeholder="Tìm kiếm theo Họ tên, Số Căn cước, Số nhà (Thường trú)..." 
                     class="pl-10 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
                     oninput="handleSearch()">
+            </div>
+            <div class="flex items-center gap-3 bg-gray-50 px-4 py-2.5 rounded-lg border whitespace-nowrap w-full md:w-auto">
+                <span class="text-sm font-medium text-gray-700">Chế độ xem:</span>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="viewMode" id="viewModeFlat" value="flat" checked onchange="currentPage=1; updateTable()" class="text-blue-600 w-4 h-4">
+                    <span class="text-sm">Danh sách</span>
+                </label>
+                <label class="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" name="viewMode" id="viewModeGroup" value="group" onchange="currentPage=1; updateTable()" class="text-blue-600 w-4 h-4">
+                    <span class="text-sm">Theo hộ (Số nhà)</span>
+                </label>
             </div>
         </div>
 
@@ -247,8 +272,105 @@
         </div>
     </div>
 
+    <!-- Modal Lọc Dữ Liệu Trùng -->
+    <div id="duplicateModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] flex flex-col modal-enter" id="duplicateModalContent">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-copy text-orange-500 mr-2"></i> Xử Lý Dữ Liệu Trùng Lặp</h2>
+                <button onclick="closeDuplicateModal()" class="text-gray-500 hover:text-red-500 transition text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-3 bg-yellow-50 text-yellow-800 text-sm border-b">
+                Hệ thống phát hiện các nhóm dữ liệu có thể bị trùng (dựa trên <b>Số căn cước</b> hoặc <b>Họ tên + Ngày sinh</b>). Vui lòng tích chọn các dòng muốn <b>XÓA</b>.<br/>
+                <i>(Gợi ý: Hệ thống đã tự động tích sẵn các bản sao, giữ lại 1 bản gốc cho mỗi nhóm).</i>
+            </div>
+            <div class="p-0 overflow-y-auto flex-grow relative">
+                <table class="w-full text-sm text-left border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10 shadow-sm">
+                        <tr>
+                            <th class="border p-2 text-center w-12"><input type="checkbox" id="selectAllDuplicates" onchange="toggleAllDuplicates(this)" class="w-4 h-4 cursor-pointer"></th>
+                            <th class="border p-2 text-center w-12">STT</th>
+                            <th class="border p-2">Họ và tên</th>
+                            <th class="border p-2 text-center">Ngày sinh</th>
+                            <th class="border p-2 text-center">Căn cước</th>
+                            <th class="border p-2">Thường trú</th>
+                        </tr>
+                    </thead>
+                    <tbody id="duplicateTableBody" class="divide-y divide-gray-200">
+                        <!-- Duplicates here -->
+                    </tbody>
+                </table>
+            </div>
+            <div class="p-4 border-t bg-gray-50 flex justify-between items-center rounded-b-lg">
+                <div class="text-sm text-gray-700">Đang chọn: <span id="selectedDuplicateCount" class="font-bold text-red-600 text-lg">0</span> dòng để xóa</div>
+                <div class="flex gap-3">
+                    <button onclick="closeDuplicateModal()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded transition">Đóng</button>
+                    <button onclick="deleteSelectedDuplicates()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded shadow transition flex items-center gap-2">
+                        <i class="fa-solid fa-trash-can"></i> Xóa hàng loạt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Application Logic -->
     <script>
+        // --- 0. AI CONFIGURATION ---
+        const defaultApiKey = ""; // API Key được tự động cung cấp trong môi trường thực thi
+        
+        function getApiKey() {
+            return localStorage.getItem('gemini_api_key') || defaultApiKey;
+        }
+
+        function configAPIKey() {
+            Swal.fire({
+                title: 'Cài đặt Gemini API Key',
+                text: 'Nếu bạn chạy ứng dụng trên máy cá nhân, hãy nhập API Key của Google AI Studio để dùng tính năng Quét Ảnh.',
+                input: 'text',
+                inputValue: localStorage.getItem('gemini_api_key') || '',
+                inputPlaceholder: 'Nhập API Key bắt đầu bằng AIza...',
+                showCancelButton: true,
+                confirmButtonText: 'Lưu',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    localStorage.setItem('gemini_api_key', result.value.trim());
+                    Swal.fire('Thành công', 'Đã lưu API Key!', 'success');
+                }
+            });
+        }
+
+        async function fetchWithRetry(urlFn, options, maxRetries = 5) {
+            const delays = [1000, 2000, 4000, 8000, 16000];
+            const modelsToTry = ["gemini-2.5-flash-preview-09-2025", "gemini-2.5-flash", "gemini-1.5-flash"];
+            let currentModelIndex = 0;
+
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const url = urlFn(modelsToTry[currentModelIndex]);
+                    const response = await fetch(url, options);
+                    const data = await response.json();
+                    
+                    if (data.error) {
+                        // Nếu model không tồn tại (xảy ra khi dùng API key cá nhân với model nội bộ của hệ thống)
+                        if (data.error.message.includes("is not found") || data.error.message.includes("not supported")) {
+                            if (currentModelIndex < modelsToTry.length - 1) {
+                                console.log(`Model ${modelsToTry[currentModelIndex]} không khả dụng, chuyển sang model dự phòng...`);
+                                currentModelIndex++;
+                                i--; // Không tính là một lần retry do lỗi mạng, đổi model và gọi lại ngay
+                                continue;
+                            }
+                        }
+                        throw new Error(data.error.message);
+                    }
+                    return data;
+                } catch (e) {
+                    if (i === maxRetries - 1) throw e;
+                    console.log(`Lỗi API, thử lại lần ${i + 1} sau ${delays[i]}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                }
+            }
+        }
+
         // --- 1. PWA & SINGLE FILE TRICKS ---
         // Create inline manifest
         const manifest = {
@@ -330,6 +452,40 @@
         }
 
         // --- 3. UI RENDER LOGIC ---
+        function createTableRow(r) {
+            const genderColor = r.gender === 'Nam' ? 'text-blue-600' : 'text-pink-600';
+            const checkVoteNA = r.voteNA ? 'x' : '';
+            const checkVoteProv = r.voteProv ? 'x' : '';
+            const checkVoteDist = r.voteDist ? 'x' : '';
+
+            const row = document.createElement('tr');
+            row.className = 'hover:bg-blue-50 transition border-b group';
+            row.innerHTML = `
+                <td class="border p-2 text-center text-gray-500 font-bold">${r.stt || ''}</td>
+                <td class="border p-2 font-medium">${r.fullName}</td>
+                <td class="border p-2 text-center">${r.dob || ''}</td>
+                <td class="border p-2 text-center font-medium ${genderColor}">${r.gender || ''}</td>
+                <td class="border p-2 text-center">${r.idCard || ''}</td>
+                <td class="border p-2 text-center">${r.ethnicity || ''}</td>
+                <td class="border p-2 truncate max-w-[200px]" title="${r.permAddress || ''}">${r.permAddress || ''}</td>
+                <td class="border p-2 truncate max-w-[150px]" title="${r.tempAddress || ''}">${r.tempAddress || ''}</td>
+                <td class="border p-2 truncate max-w-[150px]" title="${r.currAddress || ''}">${r.currAddress || ''}</td>
+                <td class="border p-2 text-center font-bold text-green-600">${checkVoteNA}</td>
+                <td class="border p-2 text-center font-bold text-green-600">${checkVoteProv}</td>
+                <td class="border p-2 text-center font-bold text-green-600">${checkVoteDist}</td>
+                <td class="border p-2 truncate max-w-[150px]" title="${r.note || ''}">${r.note || ''}</td>
+                <td class="border p-2 text-center sticky right-0 bg-white group-hover:bg-blue-50 z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
+                    <button onclick="editResident('${r.id}')" class="text-blue-500 hover:text-blue-700 mx-1 p-1" title="Sửa">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                    <button onclick="deleteResident('${r.id}')" class="text-red-500 hover:text-red-700 mx-1 p-1" title="Xóa">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </td>
+            `;
+            return row;
+        }
+
         function updateTable() {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
@@ -337,65 +493,85 @@
             // Stats
             document.getElementById('totalRecords').textContent = residents.length;
             
-            const totalItems = filteredResidents.length;
-            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
-            
-            if (currentPage > totalPages) currentPage = totalPages;
-            if (currentPage < 1) currentPage = 1;
+            const isGroupMode = document.getElementById('viewModeGroup').checked;
 
-            const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-            const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
-            
-            // Update pagination text
-            document.getElementById('pageStart').textContent = totalItems === 0 ? 0 : startIndex + 1;
-            document.getElementById('pageEnd').textContent = endIndex;
-            document.getElementById('pageTotal').textContent = totalItems;
-
-            // Render rows
-            const pageData = filteredResidents.slice(startIndex, endIndex);
-            
-            if (pageData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-gray-500">Không có dữ liệu. Hãy thêm mới hoặc phục hồi từ file sao lưu.</td></tr>`;
-            } else {
-                pageData.forEach((r, index) => {
-                    // Xử lý màu sắc cho giới tính
-                    const genderColor = r.gender === 'Nam' ? 'text-blue-600' : 'text-pink-600';
-                    
-                    // Xử lý dấu X cho bầu cử
-                    const checkVoteNA = r.voteNA ? 'x' : '';
-                    const checkVoteProv = r.voteProv ? 'x' : '';
-                    const checkVoteDist = r.voteDist ? 'x' : '';
-
-                    const row = document.createElement('tr');
-                    row.className = 'hover:bg-blue-50 transition border-b group';
-                    row.innerHTML = `
-                        <td class="border p-2 text-center text-gray-500 font-bold">${r.stt || ''}</td>
-                        <td class="border p-2 font-medium">${r.fullName}</td>
-                        <td class="border p-2 text-center">${r.dob || ''}</td>
-                        <td class="border p-2 text-center font-medium ${genderColor}">${r.gender || ''}</td>
-                        <td class="border p-2 text-center">${r.idCard}</td>
-                        <td class="border p-2 text-center">${r.ethnicity || ''}</td>
-                        <td class="border p-2 truncate max-w-[200px]" title="${r.permAddress}">${r.permAddress || ''}</td>
-                        <td class="border p-2 truncate max-w-[150px]" title="${r.tempAddress}">${r.tempAddress || ''}</td>
-                        <td class="border p-2 truncate max-w-[150px]" title="${r.currAddress}">${r.currAddress || ''}</td>
-                        <td class="border p-2 text-center font-bold text-green-600">${checkVoteNA}</td>
-                        <td class="border p-2 text-center font-bold text-green-600">${checkVoteProv}</td>
-                        <td class="border p-2 text-center font-bold text-green-600">${checkVoteDist}</td>
-                        <td class="border p-2 truncate max-w-[150px]" title="${r.note}">${r.note || ''}</td>
-                        <td class="border p-2 text-center sticky right-0 bg-white group-hover:bg-blue-50 z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
-                            <button onclick="editResident('${r.id}')" class="text-blue-500 hover:text-blue-700 mx-1 p-1" title="Sửa">
-                                <i class="fa-solid fa-pen-to-square"></i>
-                            </button>
-                            <button onclick="deleteResident('${r.id}')" class="text-red-500 hover:text-red-700 mx-1 p-1" title="Xóa">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
+            if (isGroupMode) {
+                // --- CHẾ ĐỘ NHÓM THEO HỘ ---
+                let groups = {};
+                filteredResidents.forEach(r => {
+                    let addr = (r.permAddress || '').trim();
+                    if(!addr) addr = 'Chưa xác định thường trú';
+                    if(!groups[addr]) groups[addr] = [];
+                    groups[addr].push(r);
                 });
+
+                const groupKeys = Object.keys(groups);
+                const totalItems = groupKeys.length;
+                const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+                
+                if (currentPage > totalPages) currentPage = totalPages;
+                if (currentPage < 1) currentPage = 1;
+
+                const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+                const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
+                
+                document.getElementById('pageStart').textContent = totalItems === 0 ? 0 : startIndex + 1;
+                document.getElementById('pageEnd').textContent = endIndex;
+                document.getElementById('pageTotal').textContent = totalItems + ' hộ';
+
+                const pageKeys = groupKeys.slice(startIndex, endIndex);
+
+                if (pageKeys.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-gray-500">Không có dữ liệu.</td></tr>`;
+                } else {
+                    pageKeys.forEach((addr) => {
+                        const members = groups[addr];
+                        
+                        // Header của Hộ
+                        const groupRow = document.createElement('tr');
+                        groupRow.className = 'bg-blue-100 border-b border-blue-200';
+                        groupRow.innerHTML = `
+                            <td colspan="14" class="p-2 text-blue-800 font-bold sticky left-0">
+                                <i class="fa-solid fa-house-chimney mr-2"></i> ${addr} 
+                                <span class="text-sm font-normal text-blue-600 ml-2">(${members.length} nhân khẩu)</span>
+                            </td>
+                        `;
+                        tbody.appendChild(groupRow);
+
+                        // Các thành viên trong Hộ
+                        members.forEach((r) => {
+                            tbody.appendChild(createTableRow(r));
+                        });
+                    });
+                }
+                renderPagination(totalPages);
+
+            } else {
+                // --- CHẾ ĐỘ DANH SÁCH PHẲNG ---
+                const totalItems = filteredResidents.length;
+                const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+                
+                if (currentPage > totalPages) currentPage = totalPages;
+                if (currentPage < 1) currentPage = 1;
+
+                const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+                const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
+                
+                document.getElementById('pageStart').textContent = totalItems === 0 ? 0 : startIndex + 1;
+                document.getElementById('pageEnd').textContent = endIndex;
+                document.getElementById('pageTotal').textContent = totalItems + ' người';
+
+                const pageData = filteredResidents.slice(startIndex, endIndex);
+                
+                if (pageData.length === 0) {
+                    tbody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-gray-500">Không có dữ liệu.</td></tr>`;
+                } else {
+                    pageData.forEach((r) => {
+                        tbody.appendChild(createTableRow(r));
+                    });
+                }
+                renderPagination(totalPages);
             }
-            
-            renderPagination(totalPages);
         }
 
         function renderPagination(totalPages) {
@@ -693,7 +869,194 @@
             reader.readAsText(file);
         }
 
-        // --- 7. MOCK DATA GENERATOR (For testing 5000+ limits visually) ---
+        function importExcelData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const excelRows = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (excelRows.length === 0) {
+                        Swal.fire('Lỗi', 'File Excel không có dữ liệu.', 'error');
+                        return;
+                    }
+
+                    const newResidents = excelRows.map((row, index) => {
+                        const isChecked = (val) => val === 'x' || val === 'X' || val === true;
+                        
+                        return {
+                            id: Date.now().toString() + '_' + index,
+                            stt: row['STT'] || row['stt'] || '',
+                            fullName: row['Họ và tên'] || row['Họ tên'] || row['Ho va ten'] || '',
+                            dob: row['Ngày tháng năm sinh'] || row['Ngày sinh'] || row['Ngay sinh'] || '',
+                            gender: row['Giới tính'] || row['Gioi tinh'] || '',
+                            idCard: row['Số căn cước'] || row['CCCD'] || row['So can cuoc'] || '',
+                            ethnicity: row['Dân tộc'] || row['Dan toc'] || 'Kinh',
+                            permAddress: row['Thường trú'] || row['Thuong tru'] || '',
+                            tempAddress: row['Tạm trú'] || row['Tam tru'] || '',
+                            currAddress: row['Nơi ở hiện tại'] || row['Noi o hien tai'] || '',
+                            voteNA: isChecked(row['Bầu cử ĐBQH'] || row['ĐBQH']),
+                            voteProv: isChecked(row['Bầu cử ĐB HĐND Tỉnh'] || row['HĐND Tỉnh']),
+                            voteDist: isChecked(row['Bầu cử ĐB HĐND Xã'] || row['HĐND Xã']),
+                            note: row['Ghi chú'] || row['Ghi chu'] || ''
+                        };
+                    }).filter(r => r.fullName !== ''); // Bỏ qua dòng trống không có tên
+
+                    if (newResidents.length === 0) {
+                        Swal.fire('Lỗi', 'Không tìm thấy cột dữ liệu hợp lệ (Tối thiểu cần cột "Họ và tên").', 'error');
+                        return;
+                    }
+
+                    Swal.fire({
+                        title: 'Nhập dữ liệu Excel',
+                        text: `Tìm thấy ${newResidents.length} người. Bạn muốn thêm vào danh sách hiện tại hay xóa danh sách cũ đi?`,
+                        icon: 'question',
+                        showDenyButton: true,
+                        showCancelButton: true,
+                        confirmButtonText: 'Thêm vào',
+                        denyButtonText: 'Xóa cũ & Nhập mới',
+                        cancelButtonText: 'Hủy'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            residents = [...residents, ...newResidents];
+                            saveData(); handleSearch();
+                            Swal.fire('Thành công', 'Đã thêm dữ liệu từ Excel', 'success');
+                        } else if (result.isDenied) {
+                            residents = newResidents;
+                            saveData(); handleSearch();
+                            Swal.fire('Thành công', 'Đã làm mới dữ liệu từ Excel', 'success');
+                        }
+                    });
+                } catch (error) {
+                    console.error(error);
+                    Swal.fire('Lỗi', 'Không thể đọc file Excel. Vui lòng kiểm tra lại định dạng.', 'error');
+                }
+                event.target.value = ''; // Reset
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // --- 7. IMAGE SCANNING (AI OCR) ---
+        async function processImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Swal.fire({
+                title: 'Đang dùng AI quét hình ảnh...',
+                html: 'Quá trình này có thể mất vài giây.<br/>Vui lòng giữ nguyên trang!',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                const base64Data = e.target.result.split(',')[1];
+                const mimeType = file.type;
+
+                const prompt = `Phân tích bảng danh sách cử tri trong ảnh và trích xuất dữ liệu.
+Trả về một mảng chứa các object đại diện cho từng dòng trong bảng.
+Các thuộc tính phải có:
+- "stt": (string/number) Số thứ tự ở cột đầu tiên.
+- "fullName": (string) Họ và tên.
+- "dob": (string) Ngày tháng năm sinh.
+- "gender": (string) "Nam" nếu có đánh dấu x ở cột Nam, "Nữ" nếu có đánh dấu x ở cột Nữ. Nếu không xác định rõ, dựa vào tên lót đệm (Văn/Thị) để đoán.
+- "idCard": (string) Số căn cước.
+- "ethnicity": (string) Dân tộc (thường là "Kinh").
+- "permAddress": (string) Thường trú.
+- "tempAddress": (string) Tạm trú.
+- "currAddress": (string) Nơi ở hiện tại.
+- "voteNA": (boolean) true nếu có dấu x ở cột Bầu cử ĐBQH.
+- "voteProv": (boolean) true nếu có dấu x ở cột Bầu cử HĐND Tỉnh.
+- "voteDist": (boolean) true nếu có dấu x ở cột Bầu cử HĐND Xã.
+- "note": (string) Ghi chú.
+
+Chỉ trả về định dạng mảng JSON thuần túy, KHÔNG CÓ MARKDOWN HAY CHÚ THÍCH NÀO KHÁC. Đảm bảo cấu trúc JSON hợp lệ.`;
+
+                try {
+                    const activeApiKey = getApiKey();
+                    if (!activeApiKey) {
+                        throw new Error("Vui lòng vào 'Dữ liệu > Cài đặt AI (API Key)' để nhập API Key của bạn trước khi quét ảnh.");
+                    }
+
+                    const urlFn = (model) => `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeApiKey}`;
+                    
+                    const payload = {
+                        contents: [{
+                            role: "user",
+                            parts: [
+                                { text: prompt },
+                                { inlineData: { mimeType: mimeType, data: base64Data } }
+                            ]
+                        }],
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                        }
+                    };
+
+                    const data = await fetchWithRetry(urlFn, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    const textResponse = data.candidates[0].content.parts[0].text;
+                    const parsedData = JSON.parse(textResponse);
+
+                    if (!Array.isArray(parsedData) || parsedData.length === 0) {
+                        throw new Error("Không tìm thấy dữ liệu bảng hợp lệ trong ảnh.");
+                    }
+
+                    const newResidents = parsedData.map(r => ({
+                        id: Date.now().toString() + '_' + Math.random().toString(36).substr(2, 9),
+                        stt: r.stt || '',
+                        fullName: r.fullName || '',
+                        dob: r.dob || '',
+                        gender: r.gender || 'Nam',
+                        idCard: r.idCard || '',
+                        ethnicity: r.ethnicity || 'Kinh',
+                        permAddress: r.permAddress || '',
+                        tempAddress: r.tempAddress || '',
+                        currAddress: r.currAddress || '',
+                        voteNA: !!r.voteNA,
+                        voteProv: !!r.voteProv,
+                        voteDist: !!r.voteDist,
+                        note: r.note || ''
+                    }));
+
+                    Swal.fire({
+                        title: 'Hoàn tất quét ảnh!',
+                        text: `AI đã trích xuất được ${newResidents.length} người. Bạn có muốn thêm vào danh sách?`,
+                        icon: 'success',
+                        showCancelButton: true,
+                        confirmButtonText: 'Thêm vào',
+                        cancelButtonText: 'Hủy bỏ'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            residents = [...residents, ...newResidents];
+                            saveData();
+                            handleSearch();
+                            Swal.fire('Thành công', 'Dữ liệu đã được thêm', 'success');
+                        }
+                    });
+
+                } catch (error) {
+                    console.error("Lỗi OCR:", error);
+                    Swal.fire('Quét thất bại', 'Lỗi khi phân tích ảnh: ' + error.message, 'error');
+                }
+                event.target.value = ''; // Reset file input
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // --- 8. MOCK DATA GENERATOR (For testing 5000+ limits visually) ---
         function generateMockData() {
             Swal.fire({
                 title: 'Tạo dữ liệu ảo?',
@@ -734,6 +1097,147 @@
                     Swal.fire('Hoàn tất', 'Đã thêm 500 dòng dữ liệu mẫu', 'success');
                 }
             })
+        }
+
+        // --- 9. TÍNH NĂNG LỌC TRÙNG (DUPLICATE FILTER) ---
+        const duplicateModal = document.getElementById('duplicateModal');
+        const duplicateModalContent = document.getElementById('duplicateModalContent');
+
+        function findDuplicates() {
+            const groups = {};
+            residents.forEach(r => {
+                // Tiêu chí 1: Trùng CCCD (Bỏ qua nếu rỗng)
+                if (r.idCard && r.idCard.trim() !== '') {
+                    const key = 'CCCD: ' + r.idCard.trim();
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(r);
+                } 
+                // Tiêu chí 2: Trùng Họ Tên + Ngày Sinh (Dành cho người không có thẻ hoặc thẻ sai)
+                else if (r.fullName && r.fullName.trim() !== '') {
+                    const key = 'TÊN_NS: ' + r.fullName.trim().toLowerCase() + ' | ' + (r.dob || '').trim();
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(r);
+                }
+            });
+
+            // Lọc ra các nhóm có nhiều hơn 1 phần tử
+            const duplicateGroups = [];
+            for (const key in groups) {
+                if (groups[key].length > 1) {
+                    duplicateGroups.push({
+                        key: key,
+                        records: groups[key]
+                    });
+                }
+            }
+            return duplicateGroups;
+        }
+
+        function openDuplicateModal() {
+            const dupGroups = findDuplicates();
+            if (dupGroups.length === 0) {
+                Swal.fire('Tuyệt vời!', 'Hệ thống không tìm thấy bất kỳ dữ liệu nào bị trùng lặp.', 'success');
+                return;
+            }
+
+            const tbody = document.getElementById('duplicateTableBody');
+            tbody.innerHTML = '';
+            document.getElementById('selectAllDuplicates').checked = false;
+
+            let groupIndex = 1;
+            dupGroups.forEach(group => {
+                const groupTitle = group.key.startsWith('CCCD:') 
+                    ? `Trùng Số Căn Cước (${group.key.replace('CCCD:', '').trim()})` 
+                    : `Trùng Họ tên & Ngày sinh (${group.key.replace('TÊN_NS:', '').trim().replace('|', '-')})`;
+
+                // Hàng tiêu đề nhóm
+                const headerRow = document.createElement('tr');
+                headerRow.className = 'bg-orange-100 border-y border-orange-200';
+                headerRow.innerHTML = `
+                    <td colspan="6" class="p-2 font-bold text-orange-800 text-left">
+                        <i class="fa-solid fa-layer-group mr-1"></i> Nhóm ${groupIndex++}: ${groupTitle} (${group.records.length} bản ghi)
+                    </td>
+                `;
+                tbody.appendChild(headerRow);
+
+                // Các hàng dữ liệu bên trong
+                group.records.forEach((r, idx) => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-orange-50 transition border-b';
+                    
+                    // Tự động tích chọn các phần tử từ vị trí thứ 2 trở đi (Giữ lại phần tử đầu tiên)
+                    const isChecked = idx > 0 ? 'checked' : '';
+                    
+                    row.innerHTML = `
+                        <td class="border p-2 text-center bg-white">
+                            <input type="checkbox" value="${r.id}" class="dup-checkbox w-4 h-4 text-red-600 cursor-pointer" ${isChecked} onchange="updateDuplicateCount()">
+                        </td>
+                        <td class="border p-2 text-center text-gray-500 font-bold">${r.stt || ''}</td>
+                        <td class="border p-2 font-medium">${r.fullName}</td>
+                        <td class="border p-2 text-center">${r.dob || ''}</td>
+                        <td class="border p-2 text-center font-bold text-blue-600">${r.idCard || ''}</td>
+                        <td class="border p-2 truncate max-w-[250px]" title="${r.permAddress || ''}">${r.permAddress || ''}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            });
+
+            updateDuplicateCount(); // Cập nhật số lượng check box ban đầu
+            
+            duplicateModal.classList.remove('hidden');
+            setTimeout(() => {
+                duplicateModalContent.classList.add('modal-enter-active');
+                duplicateModalContent.classList.remove('modal-enter');
+            }, 10);
+        }
+
+        function closeDuplicateModal() {
+            duplicateModalContent.classList.remove('modal-enter-active');
+            duplicateModalContent.classList.add('modal-enter');
+            setTimeout(() => {
+                duplicateModal.classList.add('hidden');
+            }, 200);
+        }
+
+        function toggleAllDuplicates(source) {
+            const checkboxes = document.querySelectorAll('.dup-checkbox');
+            checkboxes.forEach(cb => cb.checked = source.checked);
+            updateDuplicateCount();
+        }
+
+        function updateDuplicateCount() {
+            const count = document.querySelectorAll('.dup-checkbox:checked').length;
+            document.getElementById('selectedDuplicateCount').textContent = count;
+        }
+
+        function deleteSelectedDuplicates() {
+            const checkedBoxes = document.querySelectorAll('.dup-checkbox:checked');
+            if (checkedBoxes.length === 0) {
+                Swal.fire('Khoan đã', 'Bạn chưa chọn dòng nào để xóa cả!', 'info');
+                return;
+            }
+
+            const idsToDelete = Array.from(checkedBoxes).map(cb => cb.value);
+
+            Swal.fire({
+                title: 'Xóa hàng loạt?',
+                html: `Bạn đang chuẩn bị xóa vĩnh viễn <b>${idsToDelete.length}</b> bản ghi trùng lặp đã chọn.<br/>Thao tác này không thể hoàn tác!`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Vâng, xóa đi!',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Lọc bỏ các ID đã chọn xóa khỏi danh sách chính
+                    residents = residents.filter(r => !idsToDelete.includes(r.id));
+                    saveData();
+                    handleSearch();
+                    closeDuplicateModal();
+                    Swal.fire('Thành công', `Đã dọn dẹp ${idsToDelete.length} dữ liệu trùng lặp.`, 'success');
+                }
+            });
         }
 
         // Initialize App
