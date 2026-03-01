@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản Lý Dân Cư - Bầu Cử</title>
+    
+    <!-- PWA Manifest Placeholder -->
+    <link rel="manifest" id="manifest-placeholder">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SheetJS (Excel Export) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <style>
+        /* Custom Scrollbar for table */
+        ::-webkit-scrollbar { height: 8px; width: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .table-header th {
+            position: sticky;
+            top: 0;
+            background-color: #f8fafc;
+            z-index: 10;
+        }
+        
+        /* Modal transition */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 200ms, transform 200ms; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="bg-blue-700 text-white shadow-md">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-xl md:text-2xl font-bold flex items-center gap-2">
+                <i class="fa-solid fa-users-gear"></i> Hệ Thống Quản Lý Dân Cư
+            </h1>
+            <button id="installAppBtn" class="hidden bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold py-1.5 px-3 rounded text-sm transition shadow">
+                <i class="fa-solid fa-download"></i> Cài đặt App
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="flex-grow container mx-auto px-2 md:px-4 py-6">
+        
+        <!-- Controls & Stats -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex flex-wrap gap-2">
+                <button onclick="openModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> Thêm mới
+                </button>
+                <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-file-excel"></i> Xuất Excel
+                </button>
+                <div class="relative group">
+                    <button class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
+                        <i class="fa-solid fa-database"></i> Dữ liệu <i class="fa-solid fa-caret-down"></i>
+                    </button>
+                    <div class="absolute left-0 mt-1 w-48 bg-white border rounded shadow-lg hidden group-hover:block z-20">
+                        <button onclick="backupData()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+                            <i class="fa-solid fa-download text-blue-600"></i> Sao lưu (Tải về)
+                        </button>
+                        <label class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 cursor-pointer border-t">
+                            <i class="fa-solid fa-upload text-green-600"></i> Phục hồi (Tải lên)
+                            <input type="file" id="restoreFile" accept=".json" class="hidden" onchange="restoreData(event)">
+                        </label>
+                        <button onclick="generateMockData()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 border-t text-gray-500 text-sm">
+                            <i class="fa-solid fa-flask"></i> Tạo 500 mẫu test
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="text-gray-600 font-semibold bg-blue-50 px-4 py-2 rounded border border-blue-100 w-full md:w-auto text-center">
+                Tổng số: <span id="totalRecords" class="text-blue-700 text-xl font-bold">0</span> người
+            </div>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="bg-white rounded-lg shadow p-4 mb-6">
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
+                </div>
+                <input type="text" id="searchInput" placeholder="Tìm kiếm theo Họ tên, Số Căn cước, Số nhà (Thường trú)..." 
+                    class="pl-10 w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
+                    oninput="handleSearch()">
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="bg-white rounded-lg shadow overflow-hidden">
+            <div class="overflow-x-auto" style="max-height: 60vh;">
+                <table class="w-full text-sm text-left border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 uppercase table-header border-b-2 border-gray-300">
+                        <tr>
+                            <th rowspan="2" class="border p-2 text-center w-12">STT</th>
+                            <th rowspan="2" class="border p-2 min-w-[150px]">Họ và tên</th>
+                            <th rowspan="2" class="border p-2 text-center">Ngày sinh</th>
+                            <th rowspan="2" class="border p-2 text-center">Giới tính</th>
+                            <th rowspan="2" class="border p-2 text-center">Số căn cước</th>
+                            <th rowspan="2" class="border p-2 text-center">Dân tộc</th>
+                            <th colspan="3" class="border p-2 text-center bg-gray-50">Nơi cư trú</th>
+                            <th colspan="3" class="border p-2 text-center bg-blue-50 text-blue-800">Bầu cử</th>
+                            <th rowspan="2" class="border p-2">Ghi chú</th>
+                            <th rowspan="2" class="border p-2 text-center sticky right-0 bg-gray-50 z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">Thao tác</th>
+                        </tr>
+                        <tr>
+                            <th class="border p-2 bg-gray-50 min-w-[200px]">Thường trú</th>
+                            <th class="border p-2 bg-gray-50 min-w-[150px]">Tạm trú</th>
+                            <th class="border p-2 bg-gray-50 min-w-[150px]">Nơi ở hiện tại</th>
+                            <th class="border p-1 text-center bg-blue-50" title="Đại biểu Quốc Hội">ĐBQH</th>
+                            <th class="border p-1 text-center bg-blue-50" title="Đại biểu HĐND Tỉnh/Thành phố">HĐND Tỉnh</th>
+                            <th class="border p-1 text-center bg-blue-50" title="Đại biểu HĐND Xã/Phường">HĐND Xã</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-gray-200">
+                        <!-- Data will be populated here by JS -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="bg-gray-50 px-4 py-3 border-t border-gray-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="text-sm text-gray-700">
+                    Hiển thị <span id="pageStart" class="font-medium">0</span> đến <span id="pageEnd" class="font-medium">0</span> trong <span id="pageTotal" class="font-medium">0</span> kết quả
+                </div>
+                <div class="flex gap-1" id="paginationControls">
+                    <!-- Pagination buttons here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Form (Add/Edit) -->
+    <div id="formModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col modal-enter" id="modalContent">
+            <div class="flex justify-between items-center p-4 border-b">
+                <h2 id="modalTitle" class="text-xl font-bold text-gray-800">Thêm Người Dân Mới</h2>
+                <button onclick="closeModal()" class="text-gray-500 hover:text-red-500 transition text-2xl leading-none">&times;</button>
+            </div>
+            
+            <div class="p-4 overflow-y-auto flex-grow">
+                <form id="residentForm" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <input type="hidden" id="formId">
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Số thứ tự *</label>
+                        <input type="number" id="f_stt" required class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+
+                    <div class="col-span-1 md:col-span-2 lg:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Họ và tên *</label>
+                        <input type="text" id="f_name" required class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ngày tháng năm sinh</label>
+                        <input type="text" id="f_dob" placeholder="VD: 24/09/1998 hoặc 1998" class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Giới tính</label>
+                        <select id="f_gender" class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Số căn cước *</label>
+                        <input type="text" id="f_idcard" required class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Dân tộc</label>
+                        <input type="text" id="f_ethnicity" value="Kinh" class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                    
+                    <div class="col-span-1 md:col-span-2 lg:col-span-3">
+                        <h3 class="font-bold text-gray-700 border-b pb-1 mt-2 mb-2">Nơi cư trú</h3>
+                    </div>
+                    
+                    <div class="col-span-1 md:col-span-2 lg:col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Thường trú (Chỉ cần nhập Số nhà, Ấp) *</label>
+                        <div class="flex">
+                            <input type="text" id="f_permAddress" required placeholder="VD: Số 537, Hưng An B" class="w-full p-2 border border-r-0 rounded-l focus:ring-blue-500 focus:border-blue-500 outline-none">
+                            <span class="bg-gray-100 border p-2 rounded-r text-gray-600 text-sm md:text-base flex items-center whitespace-nowrap">, Xã Tân Hào, Tỉnh Vĩnh Long</span>
+                        </div>
+                    </div>
+                    
+                    <div class="col-span-1 md:col-span-2 lg:col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Tạm trú</label>
+                        <input type="text" id="f_tempAddress" class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                    
+                    <div class="col-span-1 md:col-span-2 lg:col-span-3">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Nơi ở hiện tại</label>
+                        <input type="text" id="f_currAddress" class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+
+                    <div class="col-span-1 md:col-span-2 lg:col-span-3">
+                        <h3 class="font-bold text-gray-700 border-b pb-1 mt-2 mb-2 text-blue-700">Quyền bầu cử</h3>
+                    </div>
+
+                    <div class="flex items-center gap-2 bg-blue-50 p-3 rounded border border-blue-100">
+                        <input type="checkbox" id="f_voteNA" class="w-5 h-5 text-blue-600 rounded">
+                        <label for="f_voteNA" class="text-sm font-medium text-gray-700">ĐBQH</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 bg-blue-50 p-3 rounded border border-blue-100">
+                        <input type="checkbox" id="f_voteProv" class="w-5 h-5 text-blue-600 rounded">
+                        <label for="f_voteProv" class="text-sm font-medium text-gray-700">HĐND Tỉnh/TP</label>
+                    </div>
+                    
+                    <div class="flex items-center gap-2 bg-blue-50 p-3 rounded border border-blue-100">
+                        <input type="checkbox" id="f_voteDist" class="w-5 h-5 text-blue-600 rounded">
+                        <label for="f_voteDist" class="text-sm font-medium text-gray-700">HĐND Xã/Phường</label>
+                    </div>
+
+                    <div class="col-span-1 md:col-span-2 lg:col-span-3 mt-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Ghi chú</label>
+                        <input type="text" id="f_note" class="w-full p-2 border rounded focus:ring-blue-500 focus:border-blue-500 outline-none">
+                    </div>
+                </form>
+            </div>
+            
+            <div class="p-4 border-t bg-gray-50 flex justify-end gap-3 rounded-b-lg">
+                <button type="button" onclick="closeModal()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded transition">Hủy</button>
+                <button type="button" onclick="saveResident()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-floppy-disk"></i> Lưu thông tin
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Logic -->
+    <script>
+        // --- 1. PWA & SINGLE FILE TRICKS ---
+        // Create inline manifest
+        const manifest = {
+            name: "Hệ Thống Quản Lý Dân Cư",
+            short_name: "QL Dân Cư",
+            description: "Ứng dụng quản lý dân cư và danh sách bầu cử offline",
+            start_url: ".",
+            display: "standalone",
+            background_color: "#ffffff",
+            theme_color: "#1d4ed8",
+            icons: [
+                {
+                    src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj48cGF0aCBmaWxsPSIjMWQ0ZWQ4IiBkPSJNMjU2IDBDMTE0LjYgMCAwIDExNC42IDAgMjU2czExNC42IDI1NiAyNTYgMjU2IDI1Ni0xMTQuNiAyNTYtMjU2UzM5Ny40IDAgMjU2IDB6bTAgODJjNDMuMSAwIDc4IDM0LjkgNzggNzhzLTM0LjkgNzgtNzggNzgtNzgtMzQuOS03OC03OCAzNC45LTc4IDc4LTc4em0wIDM0NmMtNzguOSAwLTE0NS41LTQ4LjMtMTczLjktMTE3LjUgMjYuNi00MS41IDczLjItNjkuNSAxMjUtNjkuNSAyNC45IDAgNDguNyA2LjEgNzAuMyAxNyA0MS41IDE3LjMgNzIuNSA1NS4yIDg0LjYgMTAwLjUtMjguNCA2OS4yLTk1IDExNy41LTE3My45IDExNy41eiIvPjwvc3ZnPg==",
+                    sizes: "512x512",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }
+            ]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        document.getElementById('manifest-placeholder').href = URL.createObjectURL(manifestBlob);
+
+        // Service Worker setup for PWA installability
+        const swCode = `
+            const CACHE_NAME = 'qldancu-v1';
+            self.addEventListener('install', (e) => { e.waitUntil(self.skipWaiting()); });
+            self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
+            self.addEventListener('fetch', (e) => {
+                e.respondWith(fetch(e.request).catch(() => new Response('Offline mode active.')));
+            });
+        `;
+        const swBlob = new Blob([swCode], {type: 'application/javascript'});
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(err => console.log('SW setup failed (normal in some restrictive iframes/local contexts)', err));
+        }
+
+        // Handle PWA Install Prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installAppBtn').classList.remove('hidden');
+        });
+        document.getElementById('installAppBtn').addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') document.getElementById('installAppBtn').classList.add('hidden');
+                deferredPrompt = null;
+            }
+        });
+
+        // --- 2. DATA MANAGEMENT ---
+        const STORAGE_KEY = 'quanlydancu_data';
+        let residents = [];
+        let filteredResidents = [];
+        
+        // Pagination state
+        const ITEMS_PER_PAGE = 50;
+        let currentPage = 1;
+
+        // Load data on start
+        function initApp() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    residents = JSON.parse(stored);
+                } catch (e) {
+                    console.error("Lỗi đọc dữ liệu", e);
+                    residents = [];
+                }
+            }
+            handleSearch();
+        }
+
+        function saveData() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(residents));
+            document.getElementById('totalRecords').textContent = residents.length;
+        }
+
+        // --- 3. UI RENDER LOGIC ---
+        function updateTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            
+            // Stats
+            document.getElementById('totalRecords').textContent = residents.length;
+            
+            const totalItems = filteredResidents.length;
+            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE) || 1;
+            
+            if (currentPage > totalPages) currentPage = totalPages;
+            if (currentPage < 1) currentPage = 1;
+
+            const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+            const endIndex = Math.min(startIndex + ITEMS_PER_PAGE, totalItems);
+            
+            // Update pagination text
+            document.getElementById('pageStart').textContent = totalItems === 0 ? 0 : startIndex + 1;
+            document.getElementById('pageEnd').textContent = endIndex;
+            document.getElementById('pageTotal').textContent = totalItems;
+
+            // Render rows
+            const pageData = filteredResidents.slice(startIndex, endIndex);
+            
+            if (pageData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="14" class="p-8 text-center text-gray-500">Không có dữ liệu. Hãy thêm mới hoặc phục hồi từ file sao lưu.</td></tr>`;
+            } else {
+                pageData.forEach((r, index) => {
+                    // Xử lý màu sắc cho giới tính
+                    const genderColor = r.gender === 'Nam' ? 'text-blue-600' : 'text-pink-600';
+                    
+                    // Xử lý dấu X cho bầu cử
+                    const checkVoteNA = r.voteNA ? 'x' : '';
+                    const checkVoteProv = r.voteProv ? 'x' : '';
+                    const checkVoteDist = r.voteDist ? 'x' : '';
+
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-blue-50 transition border-b group';
+                    row.innerHTML = `
+                        <td class="border p-2 text-center text-gray-500 font-bold">${r.stt || ''}</td>
+                        <td class="border p-2 font-medium">${r.fullName}</td>
+                        <td class="border p-2 text-center">${r.dob || ''}</td>
+                        <td class="border p-2 text-center font-medium ${genderColor}">${r.gender || ''}</td>
+                        <td class="border p-2 text-center">${r.idCard}</td>
+                        <td class="border p-2 text-center">${r.ethnicity || ''}</td>
+                        <td class="border p-2 truncate max-w-[200px]" title="${r.permAddress}">${r.permAddress || ''}</td>
+                        <td class="border p-2 truncate max-w-[150px]" title="${r.tempAddress}">${r.tempAddress || ''}</td>
+                        <td class="border p-2 truncate max-w-[150px]" title="${r.currAddress}">${r.currAddress || ''}</td>
+                        <td class="border p-2 text-center font-bold text-green-600">${checkVoteNA}</td>
+                        <td class="border p-2 text-center font-bold text-green-600">${checkVoteProv}</td>
+                        <td class="border p-2 text-center font-bold text-green-600">${checkVoteDist}</td>
+                        <td class="border p-2 truncate max-w-[150px]" title="${r.note}">${r.note || ''}</td>
+                        <td class="border p-2 text-center sticky right-0 bg-white group-hover:bg-blue-50 z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
+                            <button onclick="editResident('${r.id}')" class="text-blue-500 hover:text-blue-700 mx-1 p-1" title="Sửa">
+                                <i class="fa-solid fa-pen-to-square"></i>
+                            </button>
+                            <button onclick="deleteResident('${r.id}')" class="text-red-500 hover:text-red-700 mx-1 p-1" title="Xóa">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            }
+            
+            renderPagination(totalPages);
+        }
+
+        function renderPagination(totalPages) {
+            const container = document.getElementById('paginationControls');
+            container.innerHTML = '';
+            
+            if (totalPages <= 1) return;
+
+            // Prev button
+            const prevBtn = document.createElement('button');
+            prevBtn.innerHTML = '<i class="fa-solid fa-chevron-left"></i>';
+            prevBtn.className = `px-3 py-1 rounded border ${currentPage === 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700'}`;
+            prevBtn.onclick = () => { if(currentPage > 1) { currentPage--; updateTable(); }};
+            container.appendChild(prevBtn);
+
+            // Logic for showing dots
+            let startP = Math.max(1, currentPage - 2);
+            let endP = Math.min(totalPages, currentPage + 2);
+            
+            if (startP > 1) {
+                container.appendChild(createPageBtn(1));
+                if (startP > 2) {
+                    const dots = document.createElement('span');
+                    dots.className = 'px-2'; dots.textContent = '...';
+                    container.appendChild(dots);
+                }
+            }
+
+            for (let i = startP; i <= endP; i++) {
+                container.appendChild(createPageBtn(i));
+            }
+
+            if (endP < totalPages) {
+                if (endP < totalPages - 1) {
+                    const dots = document.createElement('span');
+                    dots.className = 'px-2'; dots.textContent = '...';
+                    container.appendChild(dots);
+                }
+                container.appendChild(createPageBtn(totalPages));
+            }
+
+            // Next button
+            const nextBtn = document.createElement('button');
+            nextBtn.innerHTML = '<i class="fa-solid fa-chevron-right"></i>';
+            nextBtn.className = `px-3 py-1 rounded border ${currentPage === totalPages ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-white hover:bg-gray-50 text-gray-700'}`;
+            nextBtn.onclick = () => { if(currentPage < totalPages) { currentPage++; updateTable(); }};
+            container.appendChild(nextBtn);
+        }
+
+        function createPageBtn(num) {
+            const btn = document.createElement('button');
+            btn.textContent = num;
+            if (num === currentPage) {
+                btn.className = 'px-3 py-1 rounded border border-blue-600 bg-blue-600 text-white';
+            } else {
+                btn.className = 'px-3 py-1 rounded border bg-white hover:bg-gray-50 text-gray-700';
+                btn.onclick = () => { currentPage = num; updateTable(); };
+            }
+            return btn;
+        }
+
+        // --- 4. SEARCH & FILTER ---
+        function handleSearch() {
+            const term = document.getElementById('searchInput').value.toLowerCase().trim();
+            if (!term) {
+                filteredResidents = [...residents];
+            } else {
+                filteredResidents = residents.filter(r => 
+                    r.fullName.toLowerCase().includes(term) || 
+                    r.idCard.toLowerCase().includes(term) || 
+                    (r.permAddress && r.permAddress.toLowerCase().includes(term))
+                );
+            }
+            
+            // Sắp xếp tự động theo STT
+            filteredResidents.sort((a, b) => {
+                let numA = parseInt(a.stt) || 0;
+                let numB = parseInt(b.stt) || 0;
+                return numA - numB;
+            });
+            
+            currentPage = 1;
+            updateTable();
+        }
+
+        // --- 5. CRUD OPERATIONS ---
+        const modal = document.getElementById('formModal');
+        const modalContent = document.getElementById('modalContent');
+        const form = document.getElementById('residentForm');
+
+        function openModal(isEdit = false) {
+            document.getElementById('modalTitle').textContent = isEdit ? 'Cập Nhật Thông Tin' : 'Thêm Người Dân Mới';
+            if(!isEdit) {
+                form.reset();
+                document.getElementById('formId').value = ''; // Quan trọng: Xóa trắng ID cũ để tránh lỗi ghi đè
+            }
+            modal.classList.remove('hidden');
+            // Small delay to allow display:block to apply before animating opacity
+            setTimeout(() => {
+                modalContent.classList.add('modal-enter-active');
+                modalContent.classList.remove('modal-enter');
+            }, 10);
+        }
+
+        function closeModal() {
+            modalContent.classList.remove('modal-enter-active');
+            modalContent.classList.add('modal-enter');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                document.getElementById('formId').value = ''; // Làm sạch ID khi đóng form
+                form.reset(); // Làm sạch form khi đóng
+            }, 200);
+        }
+
+        function saveResident() {
+            if(!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
+            const id = document.getElementById('formId').value;
+            let permLocal = document.getElementById('f_permAddress').value.trim();
+            
+            // Đề phòng trường hợp người dùng lỡ tay tự nhập luôn "Xã Tân Hào" thì xóa đi rồi gắn lại để không bị lặp
+            permLocal = permLocal.replace(/,?\s*Xã Tân Hào,\s*Tỉnh Vĩnh Long/gi, '');
+            const fullPermAddress = permLocal ? (permLocal + ', Xã Tân Hào, Tỉnh Vĩnh Long') : '';
+
+            const data = {
+                id: id || Date.now().toString(),
+                stt: document.getElementById('f_stt').value.trim(),
+                fullName: document.getElementById('f_name').value.trim(),
+                dob: document.getElementById('f_dob').value.trim(),
+                gender: document.getElementById('f_gender').value,
+                idCard: document.getElementById('f_idcard').value.trim(),
+                ethnicity: document.getElementById('f_ethnicity').value.trim(),
+                permAddress: fullPermAddress,
+                tempAddress: document.getElementById('f_tempAddress').value.trim(),
+                currAddress: document.getElementById('f_currAddress').value.trim(),
+                voteNA: document.getElementById('f_voteNA').checked,
+                voteProv: document.getElementById('f_voteProv').checked,
+                voteDist: document.getElementById('f_voteDist').checked,
+                note: document.getElementById('f_note').value.trim()
+            };
+
+            if (id) {
+                const index = residents.findIndex(r => r.id === id);
+                if (index !== -1) residents[index] = data;
+                Swal.fire({icon: 'success', title: 'Đã cập nhật', timer: 1500, showConfirmButton: false});
+            } else {
+                residents.unshift(data); // Add to top
+                Swal.fire({icon: 'success', title: 'Đã thêm mới', timer: 1500, showConfirmButton: false});
+            }
+
+            saveData();
+            handleSearch(); // Re-apply filter and render
+            closeModal();
+        }
+
+        function editResident(id) {
+            const r = residents.find(x => x.id === id);
+            if(!r) return;
+            
+            document.getElementById('formId').value = r.id;
+            document.getElementById('f_stt').value = r.stt || '';
+            document.getElementById('f_name').value = r.fullName;
+            document.getElementById('f_dob').value = r.dob || '';
+            document.getElementById('f_gender').value = r.gender || 'Nam';
+            document.getElementById('f_idcard').value = r.idCard;
+            document.getElementById('f_ethnicity').value = r.ethnicity || 'Kinh';
+            
+            // Khi sửa, cắt bỏ đuôi địa chỉ tĩnh để lại cho vào Input form cho gọn
+            let permLocalEdit = r.permAddress || '';
+            permLocalEdit = permLocalEdit.replace(', Xã Tân Hào, Tỉnh Vĩnh Long', '');
+            document.getElementById('f_permAddress').value = permLocalEdit;
+            
+            document.getElementById('f_tempAddress').value = r.tempAddress || '';
+            document.getElementById('f_currAddress').value = r.currAddress || '';
+            document.getElementById('f_voteNA').checked = r.voteNA || false;
+            document.getElementById('f_voteProv').checked = r.voteProv || false;
+            document.getElementById('f_voteDist').checked = r.voteDist || false;
+            document.getElementById('f_note').value = r.note || '';
+            
+            openModal(true);
+        }
+
+        function deleteResident(id) {
+            Swal.fire({
+                title: 'Bạn có chắc chắn?',
+                text: "Dữ liệu bị xóa sẽ không thể khôi phục trừ khi có bản sao lưu!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Vâng, xóa nó!',
+                cancelButtonText: 'Hủy'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    residents = residents.filter(r => r.id !== id);
+                    saveData();
+                    handleSearch();
+                    Swal.fire('Đã xóa!', 'Bản ghi đã bị xóa khỏi hệ thống.', 'success');
+                }
+            })
+        }
+
+        // --- 6. EXPORT / IMPORT ---
+        function exportExcel() {
+            if(filteredResidents.length === 0) {
+                Swal.fire('Opps...', 'Không có dữ liệu để xuất!', 'info');
+                return;
+            }
+
+            // Map data to match the visual table exactly
+            const excelData = filteredResidents.map((r, i) => ({
+                "STT": r.stt || '',
+                "Họ và tên": r.fullName,
+                "Ngày tháng năm sinh": r.dob,
+                "Giới tính": r.gender,
+                "Số căn cước": r.idCard,
+                "Dân tộc": r.ethnicity,
+                "Thường trú": r.permAddress,
+                "Tạm trú": r.tempAddress,
+                "Nơi ở hiện tại": r.currAddress,
+                "Bầu cử ĐBQH": r.voteNA ? 'x' : '',
+                "Bầu cử ĐB HĐND Tỉnh": r.voteProv ? 'x' : '',
+                "Bầu cử ĐB HĐND Xã": r.voteDist ? 'x' : '',
+                "Ghi chú": r.note
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(excelData);
+            
+            // Adjust column widths automatically based on content
+            const colWidths = [
+                {wch: 5}, {wch: 25}, {wch: 15}, {wch: 10}, 
+                {wch: 15}, {wch: 10}, {wch: 30}, {wch: 20}, {wch: 20}, 
+                {wch: 12}, {wch: 20}, {wch: 20}, {wch: 20}
+            ];
+            ws['!cols'] = colWidths;
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "DanhSach");
+            
+            // Generate filename with date
+            const dateStr = new Date().toISOString().split('T')[0];
+            XLSX.writeFile(wb, `DanhSachCuTri_${dateStr}.xlsx`);
+        }
+
+        function backupData() {
+            if(residents.length === 0) {
+                Swal.fire('Opps...', 'Chưa có dữ liệu để sao lưu', 'info');
+                return;
+            }
+            const dataStr = JSON.stringify(residents);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const exportFileDefaultName = `QLDanCu_Backup_${new Date().toISOString().split('T')[0]}.json`;
+
+            const linkElement = document.createElement('a');
+            linkElement.setAttribute('href', dataUri);
+            linkElement.setAttribute('download', exportFileDefaultName);
+            linkElement.click();
+        }
+
+        function restoreData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (Array.isArray(importedData)) {
+                        Swal.fire({
+                            title: 'Xác nhận phục hồi',
+                            text: `Bạn chuẩn bị tải lên ${importedData.length} bản ghi. Dữ liệu hiện tại sẽ bị GHI ĐÈ. Tiếp tục?`,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonText: 'Đồng ý',
+                            cancelButtonText: 'Hủy'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                residents = importedData;
+                                saveData();
+                                handleSearch();
+                                Swal.fire('Thành công', 'Đã phục hồi dữ liệu.', 'success');
+                            }
+                        });
+                    } else {
+                        throw new Error("Invalid format");
+                    }
+                } catch (error) {
+                    Swal.fire('Lỗi định dạng', 'File không đúng cấu trúc dữ liệu JSON.', 'error');
+                }
+                event.target.value = ''; // Reset input
+            };
+            reader.readAsText(file);
+        }
+
+        // --- 7. MOCK DATA GENERATOR (For testing 5000+ limits visually) ---
+        function generateMockData() {
+            Swal.fire({
+                title: 'Tạo dữ liệu ảo?',
+                text: "Hệ thống sẽ thêm 500 người vào danh sách hiện tại để test.",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonText: 'Tạo ngay'
+            }).then((result) => {
+                if(result.isConfirmed) {
+                    const ho = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng", "Bùi", "Đỗ", "Hồ", "Ngô", "Dương", "Lý"];
+                    const dem = ["Văn", "Thị", "Thanh", "Minh", "Thu", "Hải", "Ngọc", "Đức", "Hữu", "Xuân"];
+                    const ten = ["An", "Bình", "Cường", "Dũng", "Em", "Hoa", "Giang", "Hùng", "Hương", "Khánh", "Linh", "Mai", "Nam", "Oanh", "Phong", "Quyên", "Sơn", "Trang", "Uyên", "Vinh"];
+                    
+                    let newData = [];
+                    for(let i=0; i<500; i++) {
+                        const gender = Math.random() > 0.5 ? 'Nam' : 'Nữ';
+                        const isKinh = Math.random() > 0.1;
+                        newData.push({
+                            id: Date.now().toString() + i,
+                            stt: residents.length + i + 1,
+                            fullName: `${ho[Math.floor(Math.random()*ho.length)]} ${dem[Math.floor(Math.random()*dem.length)]} ${ten[Math.floor(Math.random()*ten.length)]}`,
+                            dob: `${Math.floor(Math.random()*28)+1}/${Math.floor(Math.random()*12)+1}/${1950 + Math.floor(Math.random()*50)}`,
+                            gender: gender,
+                            idCard: `0${Math.floor(Math.random()*90)+10}${Math.floor(Math.random()*90)+10}${Math.floor(Math.random()*900000)+100000}`,
+                            ethnicity: isKinh ? 'Kinh' : 'Khmer',
+                            permAddress: `Số ${Math.floor(Math.random()*500)+1}, Ấp ${Math.floor(Math.random()*5)+1}, Xã Tân Hào, Tỉnh Vĩnh Long`,
+                            tempAddress: '',
+                            currAddress: '',
+                            voteNA: Math.random() > 0.1,
+                            voteProv: Math.random() > 0.1,
+                            voteDist: Math.random() > 0.1,
+                            note: ''
+                        });
+                    }
+                    residents = [...newData, ...residents];
+                    saveData();
+                    handleSearch();
+                    Swal.fire('Hoàn tất', 'Đã thêm 500 dòng dữ liệu mẫu', 'success');
+                }
+            })
+        }
+
+        // Initialize App
+        initApp();
+    </script>
+</body>
+</html>
