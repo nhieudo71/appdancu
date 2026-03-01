@@ -94,6 +94,9 @@
                         <button onclick="generateMockData()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2 border-t text-gray-500 text-sm">
                             <i class="fa-solid fa-flask"></i> Tạo 500 mẫu test
                         </button>
+                        <button onclick="deleteAllData()" class="w-full text-left px-4 py-2 hover:bg-red-50 flex items-center gap-2 border-t text-red-600 font-medium">
+                            <i class="fa-solid fa-triangle-exclamation"></i> Xóa toàn bộ dữ liệu
+                        </button>
                     </div>
                 </div>
             </div>
@@ -775,6 +778,31 @@
                     Swal.fire('Đã xóa!', 'Bản ghi đã bị xóa khỏi hệ thống.', 'success');
                 }
             })
+        }
+
+        function deleteAllData() {
+            if (residents.length === 0) {
+                Swal.fire('Trống', 'Hệ thống hiện không có dữ liệu để xóa.', 'info');
+                return;
+            }
+
+            Swal.fire({
+                title: 'CẢNH BÁO NGUY HIỂM!',
+                html: `Bạn đang chuẩn bị xóa vĩnh viễn toàn bộ <b>${residents.length}</b> bản ghi khỏi máy tính này.<br/><br/><i>Khuyến cáo: Hãy đảm bảo bạn đã bấm <b>"Sao lưu (Tải về)"</b> trước khi thực hiện thao tác này!</i>`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Vâng, XÓA TẤT CẢ!',
+                cancelButtonText: 'Hủy bỏ'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    residents = [];
+                    saveData();
+                    handleSearch();
+                    Swal.fire('Thành công', 'Toàn bộ dữ liệu đã được dọn sạch.', 'success');
+                }
+            });
         }
 
         // --- 6. EXPORT / IMPORT ---
