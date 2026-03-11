@@ -737,9 +737,9 @@
                 filteredResidents = [...residents];
             } else {
                 filteredResidents = residents.filter(r => 
-                    r.fullName.toLowerCase().includes(term) || 
-                    r.idCard.toLowerCase().includes(term) || 
-                    (r.permAddress && r.permAddress.toLowerCase().includes(term))
+                    (r.fullName || '').toLowerCase().includes(term) || 
+                    (r.idCard || '').toLowerCase().includes(term) || 
+                    (r.permAddress || '').toLowerCase().includes(term)
                 );
             }
             
