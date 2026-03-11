@@ -47,9 +47,7 @@
             <h1 class="text-xl md:text-2xl font-bold flex items-center gap-2">
                 <i class="fa-solid fa-users-gear"></i> Hệ Thống Quản Lý Dân Cư
             </h1>
-            <button id="installAppBtn" class="hidden bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold py-1.5 px-3 rounded text-sm transition shadow">
-                <i class="fa-solid fa-download"></i> Cài đặt App
-            </button>
+
         </div>
     </header>
 
@@ -66,14 +64,17 @@
                     <i class="fa-solid fa-images"></i> Quét Hàng Loạt Ảnh
                     <input type="file" id="scanImageFile" accept="image/*" multiple class="hidden" onchange="openBatchScanModal(event)">
                 </label>
+                <button id="installAppBtn" onclick="installPWA()" class="hidden bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold px-4 py-2 rounded shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-mobile-screen-button"></i> Cài đặt App
+                </button>
                 <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
                     <i class="fa-solid fa-file-excel"></i> Xuất Excel
                 </button>
-                <div class="relative group">
-                    <button class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
+                <div class="relative" id="dataDropdownWrapper" onmouseenter="openDropdown()" onmouseleave="scheduleCloseDropdown()">
+                    <button class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2" onclick="toggleDropdown()">
                         <i class="fa-solid fa-database"></i> Dữ liệu <i class="fa-solid fa-caret-down"></i>
                     </button>
-                    <div class="absolute left-0 mt-1 w-48 bg-white border rounded shadow-lg hidden group-hover:block z-20">
+                    <div id="dataDropdownMenu" class="absolute left-0 mt-1 w-56 bg-white border rounded shadow-lg hidden z-20" onmouseenter="cancelCloseDropdown()" onmouseleave="scheduleCloseDropdown()">
                         <button onclick="backupData()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
                             <i class="fa-solid fa-download text-blue-600"></i> Sao lưu (Tải về)
                         </button>
@@ -511,12 +512,47 @@
             deferredPrompt = e;
             document.getElementById('installAppBtn').classList.remove('hidden');
         });
-        document.getElementById('installAppBtn').addEventListener('click', async () => {
+        window.addEventListener('appinstalled', () => {
+            document.getElementById('installAppBtn').classList.add('hidden');
+            deferredPrompt = null;
+        });
+        async function installPWA() {
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
                 if (outcome === 'accepted') document.getElementById('installAppBtn').classList.add('hidden');
                 deferredPrompt = null;
+            } else {
+                Swal.fire('Thông báo', 'Ứng dụng đã được cài đặt hoặc trình duyệt của bạn không hỗ trợ tính năng này.', 'info');
+            }
+        }
+
+        // --- Dropdown "Dữ liệu" với delay ---
+        let dropdownCloseTimer = null;
+        function openDropdown() {
+            cancelCloseDropdown();
+            document.getElementById('dataDropdownMenu').classList.remove('hidden');
+        }
+        function scheduleCloseDropdown() {
+            dropdownCloseTimer = setTimeout(() => {
+                document.getElementById('dataDropdownMenu').classList.add('hidden');
+            }, 400);
+        }
+        function cancelCloseDropdown() {
+            if (dropdownCloseTimer) {
+                clearTimeout(dropdownCloseTimer);
+                dropdownCloseTimer = null;
+            }
+        }
+        function toggleDropdown() {
+            const menu = document.getElementById('dataDropdownMenu');
+            menu.classList.toggle('hidden');
+        }
+        // Đóng dropdown khi click ra ngoài
+        document.addEventListener('click', (e) => {
+            const wrapper = document.getElementById('dataDropdownWrapper');
+            if (wrapper && !wrapper.contains(e.target)) {
+                document.getElementById('dataDropdownMenu').classList.add('hidden');
             }
         });
 
