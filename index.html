@@ -64,11 +64,11 @@
                     <i class="fa-solid fa-images"></i> Quét Hàng Loạt Ảnh
                     <input type="file" id="scanImageFile" accept="image/*" multiple class="hidden" onchange="openBatchScanModal(event)">
                 </label>
-                <button id="installAppBtn" onclick="installPWA()" class="hidden bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold px-4 py-2 rounded shadow transition flex items-center gap-2">
-                    <i class="fa-solid fa-mobile-screen-button"></i> Cài đặt App
-                </button>
                 <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
                     <i class="fa-solid fa-file-excel"></i> Xuất Excel
+                </button>
+                <button id="installAppBtn" onclick="installPWA()" class="hidden bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold px-4 py-2 rounded shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-mobile-screen-button"></i> Cài đặt App
                 </button>
                 <div class="relative" id="dataDropdownWrapper" onmouseenter="openDropdown()" onmouseleave="scheduleCloseDropdown()">
                     <button class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2" onclick="toggleDropdown()">
@@ -491,18 +491,23 @@
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
         document.getElementById('manifest-placeholder').href = URL.createObjectURL(manifestBlob);
 
-        // Service Worker setup for PWA installability
-        const swCode = `
-            const CACHE_NAME = 'qldancu-v1';
-            self.addEventListener('install', (e) => { e.waitUntil(self.skipWaiting()); });
-            self.addEventListener('activate', (e) => { e.waitUntil(self.clients.claim()); });
-            self.addEventListener('fetch', (e) => {
-                e.respondWith(fetch(e.request).catch(() => new Response('Offline mode active.')));
-            });
-        `;
-        const swBlob = new Blob([swCode], {type: 'application/javascript'});
+        // Service Worker - dùng try/catch để lỗi SW không ảnh hưởng JS còn lại
+        // (GitHub Pages không cho phép đăng ký SW từ blob URL)
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(err => console.log('SW setup failed (normal in some restrictive iframes/local contexts)', err));
+            try {
+                const swCode = [
+                    "const CACHE_NAME='qldancu-v1';",
+                    "self.addEventListener('install',(e)=>{e.waitUntil(self.skipWaiting());});",
+                    "self.addEventListener('activate',(e)=>{e.waitUntil(self.clients.claim());});",
+                    "self.addEventListener('fetch',(e)=>{e.respondWith(fetch(e.request).catch(()=>new Response('Offline.')));});"
+                ].join('');
+                const swBlob = new Blob([swCode], {type: 'application/javascript'});
+                navigator.serviceWorker.register(URL.createObjectURL(swBlob))
+                    .then(() => console.log('SW registered.'))
+                    .catch(() => console.log('SW: blob URL not supported on this host.'));
+            } catch(e) {
+                console.log('SW setup skipped:', e.message);
+            }
         }
 
         // Handle PWA Install Prompt
@@ -539,16 +544,11 @@
             }, 400);
         }
         function cancelCloseDropdown() {
-            if (dropdownCloseTimer) {
-                clearTimeout(dropdownCloseTimer);
-                dropdownCloseTimer = null;
-            }
+            if (dropdownCloseTimer) { clearTimeout(dropdownCloseTimer); dropdownCloseTimer = null; }
         }
         function toggleDropdown() {
-            const menu = document.getElementById('dataDropdownMenu');
-            menu.classList.toggle('hidden');
+            document.getElementById('dataDropdownMenu').classList.toggle('hidden');
         }
-        // Đóng dropdown khi click ra ngoài
         document.addEventListener('click', (e) => {
             const wrapper = document.getElementById('dataDropdownWrapper');
             if (wrapper && !wrapper.contains(e.target)) {
