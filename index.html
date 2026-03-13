@@ -69,6 +69,9 @@
                 <button onclick="exportExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
                     <i class="fa-solid fa-file-excel"></i> Xuất Excel
                 </button>
+                <button onclick="openNoVoteModal()" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
+                    <i class="fa-solid fa-ban"></i> Không bỏ phiếu
+                </button>
                 <div class="relative" id="dataDropdownWrapper">
                     <button onclick="toggleDataDropdown(event)" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded shadow transition flex items-center gap-2">
                         <i class="fa-solid fa-database"></i> Dữ liệu <i class="fa-solid fa-caret-down"></i>
@@ -101,8 +104,19 @@
                 </div>
             </div>
             
-            <div class="text-gray-600 font-semibold bg-blue-50 px-4 py-2 rounded border border-blue-100 w-full md:w-auto text-center">
-                Tổng số: <span id="totalRecords" class="text-blue-700 text-xl font-bold">0</span> người
+            <div class="flex flex-wrap gap-3 justify-end w-full md:w-auto">
+                <div class="flex items-center gap-2 bg-blue-50 px-3 py-2 rounded border border-blue-100 text-sm font-semibold text-gray-600">
+                    <i class="fa-solid fa-users text-blue-500"></i>
+                    Tổng số: <span id="totalRecords" class="text-blue-700 text-lg font-bold">0</span> người
+                    <span class="text-gray-300 mx-1">|</span>
+                    <i class="fa-solid fa-mars text-blue-400"></i> <span id="statMale" class="text-blue-600 font-bold">0</span> Nam
+                    <span class="text-gray-300 mx-1">·</span>
+                    <i class="fa-solid fa-venus text-pink-400"></i> <span id="statFemale" class="text-pink-600 font-bold">0</span> Nữ
+                </div>
+                <div class="flex items-center gap-2 bg-red-50 px-3 py-2 rounded border border-red-100 text-sm font-semibold text-gray-600">
+                    <i class="fa-solid fa-ban text-red-400"></i>
+                    Không bỏ phiếu: <span id="statNoVote" class="text-red-600 text-lg font-bold">0</span> người
+                </div>
             </div>
         </div>
 
@@ -309,6 +323,62 @@
                     <button onclick="closeDuplicateModal()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded transition">Đóng</button>
                     <button onclick="deleteSelectedDuplicates()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded shadow transition flex items-center gap-2">
                         <i class="fa-solid fa-trash-can"></i> Xóa hàng loạt
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Đánh Dấu Không Bỏ Phiếu -->
+    <div id="noVoteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col modal-enter" id="noVoteModalContent">
+            <div class="flex justify-between items-center p-4 border-b bg-red-600 rounded-t-xl text-white">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-ban"></i> Quản Lý Người Không Bỏ Phiếu / Bỏ Phiếu Nơi Khác
+                </h2>
+                <button onclick="closeNoVoteModal()" class="hover:text-red-200 transition text-2xl leading-none">&times;</button>
+            </div>
+            <div class="p-3 bg-red-50 text-red-800 text-sm border-b">
+                Tìm và chọn những người <b>không được bỏ phiếu</b> hoặc <b>bỏ phiếu nơi khác</b>. Người được đánh dấu sẽ bị xóa dấu "x" ở các cột bầu cử trong danh sách và Excel xuất ra.
+            </div>
+            <!-- Search inside modal -->
+            <div class="p-3 border-b">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-magnifying-glass text-gray-400"></i>
+                    </div>
+                    <input type="text" id="noVoteSearch" placeholder="Tìm theo tên, số căn cước, địa chỉ..."
+                        class="pl-9 w-full p-2 border rounded focus:ring-red-400 focus:border-red-400 outline-none text-sm"
+                        oninput="renderNoVoteTable()">
+                </div>
+            </div>
+            <div class="overflow-auto flex-grow">
+                <table class="w-full text-sm text-left border-collapse whitespace-nowrap">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-100 sticky top-0 z-10">
+                        <tr>
+                            <th class="border p-2 text-center w-10">
+                                <input type="checkbox" id="selectAllNoVote" onchange="toggleSelectAllNoVote(this)" class="w-4 h-4 cursor-pointer">
+                            </th>
+                            <th class="border p-2 text-center w-10">STT</th>
+                            <th class="border p-2 min-w-[160px]">Họ và tên</th>
+                            <th class="border p-2 text-center">Ngày sinh</th>
+                            <th class="border p-2 text-center">Giới tính</th>
+                            <th class="border p-2 text-center">Số căn cước</th>
+                            <th class="border p-2 min-w-[180px]">Thường trú</th>
+                            <th class="border p-2 text-center">Trạng thái</th>
+                        </tr>
+                    </thead>
+                    <tbody id="noVoteTableBody"></tbody>
+                </table>
+            </div>
+            <div class="p-4 border-t bg-gray-50 flex justify-between items-center rounded-b-xl flex-wrap gap-3">
+                <div class="text-sm text-gray-700">
+                    Đang chọn: <b id="noVoteSelectedCount" class="text-red-600 text-base">0</b> người không bỏ phiếu
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="closeNoVoteModal()" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded transition">Đóng</button>
+                    <button onclick="applyNoVote()" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded shadow transition flex items-center gap-2 font-semibold">
+                        <i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi
                     </button>
                 </div>
             </div>
@@ -545,21 +615,35 @@
 
         function saveData() {
             localStorage.setItem(STORAGE_KEY, JSON.stringify(residents));
-            document.getElementById('totalRecords').textContent = residents.length;
+            updateStats();
+        }
+
+        function updateStats() {
+            const total = residents.length;
+            const male = residents.filter(r => r.gender === 'Nam').length;
+            const female = residents.filter(r => r.gender === 'Nữ').length;
+            const noVote = residents.filter(r => r.noVote).length;
+            document.getElementById('totalRecords').textContent = total;
+            document.getElementById('statMale').textContent = male;
+            document.getElementById('statFemale').textContent = female;
+            document.getElementById('statNoVote').textContent = noVote;
         }
 
         // --- 3. UI RENDER LOGIC ---
         function createTableRow(r) {
             const genderColor = r.gender === 'Nam' ? 'text-blue-600' : 'text-pink-600';
-            const checkVoteNA = r.voteNA ? 'x' : '';
-            const checkVoteProv = r.voteProv ? 'x' : '';
-            const checkVoteDist = r.voteDist ? 'x' : '';
+            // Nếu bị đánh dấu không bỏ phiếu thì ẩn dấu x
+            const checkVoteNA   = (!r.noVote && r.voteNA)   ? '<span class="text-green-600 font-bold">x</span>' : (r.noVote ? '<span class="text-red-300 text-xs" title="Không bỏ phiếu">—</span>' : '');
+            const checkVoteProv = (!r.noVote && r.voteProv) ? '<span class="text-green-600 font-bold">x</span>' : (r.noVote ? '<span class="text-red-300 text-xs" title="Không bỏ phiếu">—</span>' : '');
+            const checkVoteDist = (!r.noVote && r.voteDist) ? '<span class="text-green-600 font-bold">x</span>' : (r.noVote ? '<span class="text-red-300 text-xs" title="Không bỏ phiếu">—</span>' : '');
+            const rowBg = r.noVote ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-blue-50';
+            const noVoteBadge = r.noVote ? `<span class="ml-1 text-xs bg-red-100 text-red-600 px-1 rounded border border-red-200" title="${r.noVoteReason || ''}">${r.noVoteReason ? '🚫 '+r.noVoteReason : '🚫'}</span>` : '';
 
             const row = document.createElement('tr');
-            row.className = 'hover:bg-blue-50 transition border-b group';
+            row.className = `${rowBg} transition border-b group`;
             row.innerHTML = `
                 <td class="border p-2 text-center text-gray-500 font-bold">${r.stt || ''}</td>
-                <td class="border p-2 font-medium">${r.fullName}</td>
+                <td class="border p-2 font-medium">${r.fullName}${noVoteBadge}</td>
                 <td class="border p-2 text-center">${r.dob || ''}</td>
                 <td class="border p-2 text-center font-medium ${genderColor}">${r.gender || ''}</td>
                 <td class="border p-2 text-center">${r.idCard || ''}</td>
@@ -567,11 +651,11 @@
                 <td class="border p-2 truncate max-w-[200px]" title="${r.permAddress || ''}">${r.permAddress || ''}</td>
                 <td class="border p-2 truncate max-w-[150px]" title="${r.tempAddress || ''}">${r.tempAddress || ''}</td>
                 <td class="border p-2 truncate max-w-[150px]" title="${r.currAddress || ''}">${r.currAddress || ''}</td>
-                <td class="border p-2 text-center font-bold text-green-600">${checkVoteNA}</td>
-                <td class="border p-2 text-center font-bold text-green-600">${checkVoteProv}</td>
-                <td class="border p-2 text-center font-bold text-green-600">${checkVoteDist}</td>
+                <td class="border p-2 text-center">${checkVoteNA}</td>
+                <td class="border p-2 text-center">${checkVoteProv}</td>
+                <td class="border p-2 text-center">${checkVoteDist}</td>
                 <td class="border p-2 truncate max-w-[150px]" title="${r.note || ''}">${r.note || ''}</td>
-                <td class="border p-2 text-center sticky right-0 bg-white group-hover:bg-blue-50 z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
+                <td class="border p-2 text-center sticky right-0 ${r.noVote ? 'bg-red-50 group-hover:bg-red-100' : 'bg-white group-hover:bg-blue-50'} z-10 shadow-[-2px_0_5px_rgba(0,0,0,0.05)]">
                     <button onclick="editResident('${r.id}')" class="text-blue-500 hover:text-blue-700 mx-1 p-1" title="Sửa">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
@@ -588,7 +672,7 @@
             tbody.innerHTML = '';
             
             // Stats
-            document.getElementById('totalRecords').textContent = residents.length;
+            updateStats();
             
             const isGroupMode = document.getElementById('viewModeGroup').checked;
 
@@ -907,7 +991,7 @@
             }
 
             // Map data to match the visual table exactly
-            const excelData = filteredResidents.map((r, i) => ({
+            const excelData = filteredResidents.map((r) => ({
                 "STT": r.stt || '',
                 "Họ và tên": r.fullName,
                 "Ngày tháng năm sinh": r.dob,
@@ -917,9 +1001,11 @@
                 "Thường trú": r.permAddress,
                 "Tạm trú": r.tempAddress,
                 "Nơi ở hiện tại": r.currAddress,
-                "Bầu cử ĐBQH": r.voteNA ? 'x' : '',
-                "Bầu cử ĐB HĐND Tỉnh": r.voteProv ? 'x' : '',
-                "Bầu cử ĐB HĐND Xã": r.voteDist ? 'x' : '',
+                // Nếu noVote thì để trống các cột bầu cử
+                "Bầu cử ĐBQH": (!r.noVote && r.voteNA) ? 'x' : '',
+                "Bầu cử ĐB HĐND Tỉnh": (!r.noVote && r.voteProv) ? 'x' : '',
+                "Bầu cử ĐB HĐND Xã": (!r.noVote && r.voteDist) ? 'x' : '',
+                "Không bỏ phiếu": r.noVote ? (r.noVoteReason || 'Không bỏ phiếu') : '',
                 "Ghi chú": r.note
             }));
 
@@ -929,7 +1015,7 @@
             const colWidths = [
                 {wch: 5}, {wch: 25}, {wch: 15}, {wch: 10}, 
                 {wch: 15}, {wch: 10}, {wch: 30}, {wch: 20}, {wch: 20}, 
-                {wch: 12}, {wch: 20}, {wch: 20}, {wch: 20}
+                {wch: 12}, {wch: 20}, {wch: 20}, {wch: 22}, {wch: 20}
             ];
             ws['!cols'] = colWidths;
 
@@ -1572,6 +1658,120 @@ Chỉ trả về định dạng mảng JSON thuần túy, KHÔNG CÓ MARKDOWN HA
             });
         }
 
+        // --- NO-VOTE MANAGEMENT ---
+        function openNoVoteModal() {
+            document.getElementById('noVoteSearch').value = '';
+            renderNoVoteTable();
+            const modal = document.getElementById('noVoteModal');
+            const content = document.getElementById('noVoteModalContent');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                content.classList.add('modal-enter-active');
+                content.classList.remove('modal-enter');
+            }, 10);
+        }
+
+        function closeNoVoteModal() {
+            const content = document.getElementById('noVoteModalContent');
+            content.classList.remove('modal-enter-active');
+            content.classList.add('modal-enter');
+            setTimeout(() => {
+                document.getElementById('noVoteModal').classList.add('hidden');
+            }, 200);
+        }
+
+        function renderNoVoteTable() {
+            const term = (document.getElementById('noVoteSearch').value || '').toLowerCase().trim();
+            const tbody = document.getElementById('noVoteTableBody');
+            tbody.innerHTML = '';
+
+            const list = term
+                ? residents.filter(r =>
+                    (r.fullName || '').toLowerCase().includes(term) ||
+                    (r.idCard || '').toString().toLowerCase().includes(term) ||
+                    (r.permAddress || '').toLowerCase().includes(term))
+                : [...residents].sort((a, b) => (parseInt(a.stt)||0) - (parseInt(b.stt)||0));
+
+            if (list.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="p-6 text-center text-gray-400">Không tìm thấy kết quả.</td></tr>`;
+                return;
+            }
+
+            list.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.className = `border-b transition ${r.noVote ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'}`;
+                const reasonOptions = ['Không bỏ phiếu', 'Bỏ phiếu nơi khác', 'Đã mất', 'Đi vắng', 'Mất năng lực hành vi'].map(opt =>
+                    `<option value="${opt}" ${r.noVoteReason === opt ? 'selected' : ''}>${opt}</option>`
+                ).join('');
+                tr.innerHTML = `
+                    <td class="border p-2 text-center">
+                        <input type="checkbox" class="novote-cb w-4 h-4 text-red-600 cursor-pointer" data-id="${r.id}" ${r.noVote ? 'checked' : ''}
+                            onchange="onNoVoteCbChange(this)">
+                    </td>
+                    <td class="border p-2 text-center text-gray-500 font-bold">${r.stt || ''}</td>
+                    <td class="border p-2 font-medium">${r.fullName}</td>
+                    <td class="border p-2 text-center">${r.dob || ''}</td>
+                    <td class="border p-2 text-center ${r.gender === 'Nam' ? 'text-blue-600' : 'text-pink-600'}">${r.gender || ''}</td>
+                    <td class="border p-2 text-center">${r.idCard || ''}</td>
+                    <td class="border p-2 truncate max-w-[200px]" title="${r.permAddress || ''}">${r.permAddress || ''}</td>
+                    <td class="border p-2">
+                        <select data-id="${r.id}" onchange="onNoVoteReasonChange(this)"
+                            class="text-xs border rounded px-1 py-1 w-full ${r.noVote ? 'text-red-700 border-red-300 bg-red-50' : 'text-gray-400'}"
+                            ${r.noVote ? '' : 'disabled'}>
+                            ${reasonOptions}
+                        </select>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            updateNoVoteCount();
+        }
+
+        function onNoVoteCbChange(cb) {
+            const id = cb.dataset.id;
+            const r = residents.find(x => x.id === id);
+            if (!r) return;
+            r.noVote = cb.checked;
+            if (!cb.checked) r.noVoteReason = '';
+            // Enable/disable reason select in same row
+            const row = cb.closest('tr');
+            const sel = row.querySelector('select');
+            if (sel) {
+                sel.disabled = !cb.checked;
+                sel.className = `text-xs border rounded px-1 py-1 w-full ${cb.checked ? 'text-red-700 border-red-300 bg-red-50' : 'text-gray-400'}`;
+            }
+            row.className = `border-b transition ${cb.checked ? 'bg-red-50 hover:bg-red-100' : 'hover:bg-gray-50'}`;
+            updateNoVoteCount();
+        }
+
+        function onNoVoteReasonChange(sel) {
+            const id = sel.dataset.id;
+            const r = residents.find(x => x.id === id);
+            if (r) r.noVoteReason = sel.value;
+        }
+
+        function toggleSelectAllNoVote(source) {
+            const cbs = document.querySelectorAll('.novote-cb');
+            cbs.forEach(cb => {
+                cb.checked = source.checked;
+                onNoVoteCbChange(cb);
+            });
+        }
+
+        function updateNoVoteCount() {
+            const count = document.querySelectorAll('.novote-cb:checked').length;
+            document.getElementById('noVoteSelectedCount').textContent = count;
+        }
+
+        function applyNoVote() {
+            saveData();
+            handleSearch();
+            closeNoVoteModal();
+            const noVoteCount = residents.filter(r => r.noVote).length;
+            Swal.fire({icon: 'success', title: 'Đã lưu!', html: `Đã cập nhật danh sách.<br/><b>${noVoteCount}</b> người không bỏ phiếu.`, timer: 2000, showConfirmButton: false});
+        }
+
         // --- DROPDOWN "DỮ LIỆU" ---
         function toggleDataDropdown(e) {
             e.stopPropagation();
@@ -1590,6 +1790,7 @@ Chỉ trả về định dạng mảng JSON thuần túy, KHÔNG CÓ MARKDOWN HA
 
         // Initialize App
         initApp();
+        
     </script>
 </body>
 </html>
